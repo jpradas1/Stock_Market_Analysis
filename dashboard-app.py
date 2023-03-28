@@ -29,7 +29,7 @@ page1 = "Sector"
 page2 = "Sub-Industry"
 page3 = "Stock"
 pages = {"Sector": page1, "Sub-Industry": page2, "Stock": page3}
-page_choice = st.sidebar.multiselect("Stock Marcket Leaf", list(pages.keys()))
+page_choice = st.sidebar.multiselect("Stock Market Leaf", list(pages.keys()))
 
 
 #--> sidebar: Row Middle
