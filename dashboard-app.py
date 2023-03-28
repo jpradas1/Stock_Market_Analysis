@@ -1,86 +1,80 @@
 import streamlit as st
-import seaborn as sns
-import numpy as np
-import matplotlib.pyplot as plt
+# import altair as alt
 
-number = np.random.choice(10)
+# import numpy as np
+import pandas as pd
+# import matplotlib.pyplot as plt
 
-color_dict = {
-    "Red": "#FF0000",
-    "Green": "#00FF00",
-    "Blue": "#0000FF",
-}
+from get_dataset import Finance
+from get_dataset import Returns_Risk
+from pages_dashboard import Sectors, Industry
 
-lista = ["Item 1", "Item 2", "Item 3"]
+F = Finance()
 
-items_str = "<ul>"
-for item in lista:
-    items_str += "<li>{}</li>".format(item)
-items_str += "</ul>"
+# primary settings
+st.set_page_config(layout='wide', initial_sidebar_state='expanded')
 
-items_str2 = "<ul>"
-for color, hexcode in color_dict.items():
-    items_str2 += "<li><span style='background-color:{}; padding: 5px; \
-            border-radius: 50%; display: inline-block; margin-right: 10px;\
-            '></span>{}</li>".format(hexcode, color)
-items_str2 += "</ul>"
+with open('style.css') as f:
+    st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
 
-page1 =  """
-        <div style='display: flex; justify-content: space-between;'>
-            <div style='background-color: #ffb3ba; padding: 20px; width: 30%;'>
-                <h3>Global Return</h3>
-                <p>{}</p>
-            </div>
-            <div style='background-color: #ffdfba; padding: 20px; width: 30%;'>
-                <h3>Top Sectors</h3>
-                {}
-            </div>
-            <div style='background-color: #bae1ff; padding: 20px; width: 30%;'>
-                {}
-            </div>
-        </div>
-        """.format(number, items_str, items_str2)
-page2 = "This is page 2"
-page3 = "This is page 3"
+st.sidebar.header('Analysis on Stock Market')
 
-pages = {"Sector": page1, "Subindustries": page2, "Stock": page3}
 
-# Add a multiselect widget to choose the page
+# Date & DataFrame
+data_sector = F.adj_close_mean_sector().reset_index()
+data_sector['Date'] = pd.to_datetime(data_sector['Date']).dt.date
+
+# left sidebar settings
+page1 = "Sector"
+page2 = "Sub-Industry"
+page3 = "Stock"
+pages = {"Sector": page1, "Sub-Industry": page2, "Stock": page3}
 page_choice = st.sidebar.multiselect("Stock Marcket Leaf", list(pages.keys()))
 
-# Display the content for the selected page
-# for choice in page_choice:
-#     st.write(pages[choice])
 
-# if "Sector" in page_choice:
+#--> sidebar: Row Middle
+st.sidebar.subheader('Select Sector')
+sidebar_sector = st.sidebar.multiselect('Select Sector', F.get_sector())
 
-row1 = st.columns([1])[0]
-with row1:
-    st.markdown(page1 , unsafe_allow_html=True)
+#--> slidebar: Row Middle
+min_date, max_date = data_sector['Date'].min(), data_sector['Date'].max()
+start_date = st.sidebar.date_input("Start date", value=min_date, min_value=min_date, max_value=max_date)
+end_date = st.sidebar.date_input("End date", value=max_date, min_value=min_date, max_value=max_date)
 
-row2 = st.columns([1])[0]
-with row2:
-    plt.figure(figsize=(15,5))
-    sns.set_style("whitegrid")
-    tips = sns.load_dataset("tips")
-    ax = sns.violinplot(x="day", y="total_bill", hue="sex", data=tips, split=True)
-    st.pyplot(ax.figure)
+#--> select gruopby (year, month, week)
+time_type = st.sidebar.radio(
+    "Select how to group data by:",
+    ('Year', 'Month-Year', 'Week-Year'))
 
-row31, row32, row33 = st.columns([1, 1, 1])
-with row31:
-    sns.set_style("whitegrid")
-    iris = sns.load_dataset("iris")
-    ax1 = sns.boxplot(x="species", y="sepal_length", data=iris)
-    st.pyplot(ax1.figure)
 
-with row32:
-    sns.set_style("whitegrid")
-    iris = sns.load_dataset("iris")
-    ax2 = sns.scatterplot(x="sepal_width", y="petal_length", hue="species", data=iris)
-    st.pyplot(ax2.figure)
+# Filter the data based on the selected date range
+mask = (data_sector['Date'] >= pd.to_datetime(start_date).date()) & \
+        (data_sector['Date'] <= pd.to_datetime(end_date).date())
 
-with row33:
-    sns.set_style("whitegrid")
-    iris = sns.load_dataset("iris")
-    ax3 = sns.violinplot(x="species", y="petal_length", data=iris)
-    st.pyplot(ax3.figure)
+# Filtered Data & DataFrames
+filtered_sector = data_sector.loc[mask]
+sector_returns, sector_risk = Returns_Risk(filtered_sector.set_index('Date'), time_type)
+
+
+# display
+if "Sector" in page_choice:
+    Sectors(filtered_sector, sector_returns, sector_risk, sidebar_sector,
+            start_date, end_date)
+    
+
+## Sub-Industries
+st.sidebar.subheader('Select Sub-Industry')
+if sidebar_sector:
+    sidebar_industry = st.sidebar.multiselect('Select Sub-Industry', F.get_subindustry(sector=sidebar_sector[0]))
+    data_sub = F.adj_close_total_sub(sector=sidebar_sector[0]).reset_index()
+    data_sub['Date'] = pd.to_datetime(data_sub['Date']).dt.date
+
+    # Filter the data based on the selected date range
+    mask = (data_sub['Date'] >= pd.to_datetime(start_date).date()) & \
+            (data_sub['Date'] <= pd.to_datetime(end_date).date())
+    
+    filtered_sub = data_sub.loc[mask]
+    sub_returns, sub_risk = Returns_Risk(filtered_sub.set_index('Date'),time_type)
+
+    if "Sub-Industry" in page_choice:
+        Industry(filtered_sub, sub_returns, sub_risk, sidebar_industry, start_date, end_date)

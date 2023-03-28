@@ -48,23 +48,7 @@ class Finance(object):
             with redirect_stdout(null_file):
                 df = yf.download(stock, self.start, self.end)
         
-        df.to_csv(self._pathing(sector, sub) + str(stock) + '.csv', index=False)
-
-    def _download_stock(self, stock: str):
-        with open("/dev/null", "w") as null_file:
-            with redirect_stdout(null_file):
-                df = yf.download(stock, self.start, self.end)
-        df['Return'] = df['Adj Close'].pct_change()
-        df['Symbol'] = str(stock)
-        return df
-    
-    def _download_adj_close(self, stock: str):
-        with open("/dev/null", "w") as null_file:
-            with redirect_stdout(null_file):
-                df = yf.download(stock, self.start, self.end)
-
-        df = df[['Adj Close']].rename(columns={'Adj Close':str(stock)})
-        return df
+        df.to_csv(self._pathing(sector, sub) + str(stock) + '.csv')
 
     def create_csv(self):
         total = self.sp500['Symbol'].values.shape[0]
@@ -77,36 +61,33 @@ class Finance(object):
                     ii = ii + 1
                     print(progress, end='\r')
 
-    def concat_sector(self, sector: str):
-        total = self.sp500.loc[self.sp500['GICS Sector'] == sector, 'Symbol'].shape[0]
-        companies = []
-        ii = 1
-        for industry in self.get_subindustry(sector):
-            for stock in self.get_stock(sector, industry):
-                df = self._download_stock(stock)
-                progress = "Downloading file {} of {}".format(ii, total)
-                ii = ii + 1
-                print(progress, end='\r')
-                companies.append(df)
-
-        companies = pd.concat(companies)
-        return companies
+    def verify_stock(self, sector: str, sub: str, stock: str):
+        path = './dataset/{}/{}/{}.csv'.format(sector, sub, stock)
+        try:
+            if os.path.exists(path):
+                pass
+            else:
+                self._download_stock_csv(sector, sub, stock)
+        except:
+            pass
+    
+    def _local_adj_close(self, sector:str, sub: str, stock: str):
+        self.verify_stock(sector, sub, stock)
+        path = './dataset/{}/{}/'.format(sector, sub)
+        df = pd.read_csv(path + str(stock) + '.csv')
+        df = df[['Date','Adj Close']].rename(columns={'Adj Close':str(stock)})
+        return df
 
     def adj_close_sector(self, sector: str):
-        total = self.sp500.loc[self.sp500['GICS Sector'] == sector, 'Symbol'].shape[0]
         companies = []
-        ii = 1
         for industry in self.get_subindustry(sector):
             for stock in self.get_stock(sector, industry):
-                df = self._download_adj_close(stock)
-                progress = "Downloading file {} of {}".format(ii, total)
-                ii = ii + 1
-                print(progress, end='\r')
-                companies.append(df.reset_index())
+                df = self._local_adj_close(sector, industry, stock)
+                companies.append(df)
 
         merge = reduce(lambda left, right: pd.merge(left, right, on='Date', how='outer'), companies)
         merge = merge.set_index('Date')
-        merge_mean = pd.DataFrame(merge.mean(axis=1), columns=[str(sector)])
+        merge_mean = pd.DataFrame(merge.sum(axis=1), columns=[str(sector)])
         return merge_mean
     
     def adj_close_mean_sector(self):
@@ -119,25 +100,55 @@ class Finance(object):
         merge.set_index('Date', inplace=True)
         return merge
     
-    # def sector_dividends(self, sector: str):
-    #     dividend, ii = [], 1
-    #     total =  self.sp500.loc[self.sp500['GICS Sector'] == sector, 'Symbol'].shape[0]
+    def adj_close_industry(self, sector: str, sub: str):
+        companies = []
+        for stock in self.get_stock(sector, sub):
+            df = self._local_adj_close(sector, sub, stock)
+            companies.append(df)
 
-    #     for industry in self.get_subindustry(sector):
-    #         for stock in self.get_stock(sector, industry):
-    #             divd = pd.DataFrame(yf.Ticker(stock).dividends, columns=['Dividends']).reset_index()
-    #             divd['Date'] = pd.to_datetime(divd['Date']).dt.date
-    #             divd = divd.loc[divd['Date'] >= pd.to_datetime(self.start)]
-    #             dividend.append(divd)
+        merge = reduce(lambda left, right: pd.merge(left, right, on='Date', how='outer'), companies)
+        merge = merge.set_index('Date')
+        merge_total = pd.DataFrame(merge.sum(axis=1), columns=[str(sub)])
+        return merge_total
+    
+    def adj_close_total_sub(self, sector: str):
+        industry = self.get_subindustry(sector)
+        dfs = []
+        for ii in industry:
+            dfs.append(self.adj_close_industry(sector, ii))
 
-    #             progress = "Downloading file {} of {}".format(ii, total)
-    #             ii = ii + 1
-    #             print(progress, end='\r')
-        
-    #     # dividend = reduce(lambda left, right: pd.merge(left, right, on='Date', how='outer'), dividend)
-    #     # dividend_mean = pd.DataFrame(dividend.mean(axis=1), columns=[str(sector)+' Mean Dividend'])
-    #     return dividend
+        merge = reduce(lambda left, right: pd.merge(left, right, left_index=True, right_index=True), dfs)
+        return merge
 
+def Returns_Risk(df_adj_close: pd.DataFrame, time_type: str):
+    F = Finance()
+    ttype = time_type.lower()[0]
+    type = {'y': "%Y", 'm': "%Y-%m", 'w': "%Y-%U"}
 
-# F = Finance()
-# print(F.concat_sector('Energy').head())
+    df_returns = round(df_adj_close.pct_change()*100, 2)
+    df_returns.index = pd.to_datetime(df_returns.index)
+
+    volatility, expected_return, total_return = [], [], []
+    for item in df_returns.columns:
+        v = df_returns[item].std()
+        m = df_returns[item].mean()
+        t = df_returns[item].sum()
+        expected_return.append(m)
+        volatility.append(v)
+        total_return.append(t)
+
+    sample = zip(df_returns.columns, expected_return, volatility, total_return)
+    risk = {k: [ex, vo, t] for (k, ex, vo, t) in sample}
+    risk = pd.DataFrame(risk, index=['Expected Return', 'Volatility', 'Total Return']).T
+    risk = risk.reset_index()
+    risk.rename(columns={'index':'Sector'}, inplace=True)
+
+    df_returns[time_type] = df_returns.index.strftime(type[ttype])
+    df_returns = df_returns.groupby(time_type).sum()
+
+    return df_returns, risk
+
+# sector = 'Health Care'
+# sub = 'Biotechnology'
+# df = Finance().adj_close_total_sub(sector)
+# print(Returns_Risk(df, 'year'))
