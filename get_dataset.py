@@ -197,3 +197,4 @@ def MACD(sector: str, sub: str, stock: str, start_date):#, time_type: str):
 
     return df_stock
 
+# Finance().create_csv()
