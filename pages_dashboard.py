@@ -2,6 +2,7 @@ import streamlit as st
 import altair as alt
 
 import pandas as pd
+import statsmodels.api as sm
 
 def Sectors(filtered_sector, df_returns, risk, plot_data, 
             start_date, end_date):
@@ -133,3 +134,40 @@ def Industry(filtered_sub, df_returns, risk, plot_data,
             color = 'Sector'
         ).configure_legend(disable=True).interactive()
         st.altair_chart(b, use_container_width=True)
+
+def Stock(filtered_stock, G_Return, stock, start_date, end_date):
+    # Row Top
+    st.markdown('### KPIs for {} from {} to {}'.format(stock, start_date.year, end_date.year))
+    col1, col2, col3 = st.columns(3)
+    global_return = filtered_stock['Returns'].values[-1]
+    previous_return = 1- filtered_stock['Returns'].values[-2]/filtered_stock['Returns'].values[-1]
+    col1.metric("Global Returns", "{:.2f}%".format(global_return), "{:.2f}%".format(previous_return))
+
+    roi = (filtered_stock['Close'].values[-1] - filtered_stock['Open'].values[0]) / filtered_stock['Open'].values[0] * 100
+    col2.metric("Return on Investment (ROI)", "{:.2f}%".format(roi), "")
+
+    y = filtered_stock['Returns'].values
+    X = sm.add_constant(G_Return['Global'])
+    model = sm.OLS(y, X)
+    results = model.fit()
+    beta = results.params['Global']
+    per = (beta - 1) * 100
+    col3.metric("Volatility (Beta)", "{:.2f}".format(beta), "{:.2f}%".format(per))
+
+    # Row Middle
+
+    # st.markdown('### MACD')
+    # fs = filtered_stock.reset_index()[['Date','MACD','Signal']]
+    # plots = []
+    # for y_col in fs.columns[1:]:
+    #     plot = alt.Chart(fs).mark_line().encode(
+    #         x='Date',
+    #         y=y_col
+    #     )
+    #     plots.append(plot)
+
+    # # Combine the line plots using the layer method
+    # combined_plot = alt.layer(*plots)
+
+    # # Display the plot in Streamlit
+    # st.altair_chart(combined_plot)

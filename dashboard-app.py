@@ -6,8 +6,8 @@ import pandas as pd
 # import matplotlib.pyplot as plt
 
 from get_dataset import Finance
-from get_dataset import Returns_Risk
-from pages_dashboard import Sectors, Industry
+from get_dataset import Returns_Risk, MACD, global_return
+from pages_dashboard import Sectors, Industry, Stock
 
 F = Finance()
 
@@ -64,6 +64,7 @@ if "Sector" in page_choice:
 
 ## Sub-Industries
 st.sidebar.subheader('Select Sub-Industry')
+sidebar_industry = None
 if sidebar_sector:
     sidebar_industry = st.sidebar.multiselect('Select Sub-Industry', F.get_subindustry(sector=sidebar_sector[0]))
     data_sub = F.adj_close_total_sub(sector=sidebar_sector[0]).reset_index()
@@ -78,3 +79,17 @@ if sidebar_sector:
 
     if "Sub-Industry" in page_choice:
         Industry(filtered_sub, sub_returns, sub_risk, sidebar_industry, start_date, end_date)
+
+## Stocks
+st.sidebar.subheader('Select Stock')
+if sidebar_industry:
+    sidebar_stock  = st.sidebar.multiselect('Select Sub-Industry', \
+                        F.get_stock(sector=sidebar_sector[0], sub=sidebar_industry[0]))
+
+    if "Stock" in page_choice:
+        
+        g_return = global_return(start_date).dropna()
+        
+        for st in sidebar_stock:
+            data_stock = MACD(sector=sidebar_sector[0], sub=sidebar_industry[0], stock=st, start_date=start_date)
+            Stock(data_stock, g_return, st, start_date, end_date)

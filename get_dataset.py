@@ -35,6 +35,7 @@ class Finance(object):
         stock = [x for x in stock]
         return stock
     
+    # create folder to allocate .csv
     def _pathing(self, sector: str, sub: str):
         path = './dataset/{}/{}/'.format(sector, sub)
 
@@ -43,6 +44,7 @@ class Finance(object):
 
         return path
     
+    # save stock data into csv
     def _download_stock_csv(self, sector: str, sub: str, stock: str):
         with open("/dev/null", "w") as null_file:
             with redirect_stdout(null_file):
@@ -71,18 +73,22 @@ class Finance(object):
         except:
             pass
     
-    def _local_adj_close(self, sector:str, sub: str, stock: str):
+    def local_adj_close(self, sector:str, sub: str, stock: str, full = False):
         self.verify_stock(sector, sub, stock)
         path = './dataset/{}/{}/'.format(sector, sub)
         df = pd.read_csv(path + str(stock) + '.csv')
         df = df[['Date','Adj Close']].rename(columns={'Adj Close':str(stock)})
+
+        if full:
+            df = pd.read_csv(path + str(stock) + '.csv').rename(columns={'Adj Close':str(stock)})
+
         return df
 
     def adj_close_sector(self, sector: str):
         companies = []
         for industry in self.get_subindustry(sector):
             for stock in self.get_stock(sector, industry):
-                df = self._local_adj_close(sector, industry, stock)
+                df = self.local_adj_close(sector, industry, stock)
                 companies.append(df)
 
         merge = reduce(lambda left, right: pd.merge(left, right, on='Date', how='outer'), companies)
@@ -90,6 +96,7 @@ class Finance(object):
         merge_mean = pd.DataFrame(merge.sum(axis=1), columns=[str(sector)])
         return merge_mean
     
+    # Return total adjusted closing price by sector
     def adj_close_mean_sector(self):
         sector = self.get_sector()
         dfs = []
@@ -100,10 +107,11 @@ class Finance(object):
         merge.set_index('Date', inplace=True)
         return merge
     
+    # Return total adjuted closing price by sub-industry
     def adj_close_industry(self, sector: str, sub: str):
         companies = []
         for stock in self.get_stock(sector, sub):
-            df = self._local_adj_close(sector, sub, stock)
+            df = self.local_adj_close(sector, sub, stock)
             companies.append(df)
 
         merge = reduce(lambda left, right: pd.merge(left, right, on='Date', how='outer'), companies)
@@ -148,7 +156,51 @@ def Returns_Risk(df_adj_close: pd.DataFrame, time_type: str):
 
     return df_returns, risk
 
+def global_return(start_date):
+    df_sector = Finance().adj_close_mean_sector()
+    global_r = pd.DataFrame(df_sector.sum(axis=1), columns=['Global'])
+    df_returns = round(global_r.pct_change()*100, 2).reset_index()
+    df_returns['Date'] = df_returns['Date'].apply(lambda x: pd.to_datetime(x).date())
+    df_returns.set_index('Date', inplace=True)
+    mask = (df_returns.index > pd.to_datetime(start_date).date())
+    df_returns = df_returns[mask]
+    return df_returns
+
+
+def MACD(sector: str, sub: str, stock: str, start_date):#, time_type: str):
+    F = Finance()
+    df_stock = F.local_adj_close(sector, sub, stock, True)
+
+    # ttype = time_type.lower()[0]
+    # type = {'m': "%Y-%m", 'w': "%Y-%U"}
+
+    df_stock['Returns'] = round(df_stock[stock].pct_change()*100, 2)
+
+    df_stock['EMA-12'] = df_stock[stock].ewm(span=12, adjust=False).mean()
+    df_stock['EMA-26'] = df_stock[stock].ewm(span=26, adjust=False).mean()
+
+    # MACD Indicator = 12-Period EMA − 26-Period EMA.
+    df_stock['MACD'] = df_stock['EMA-12'] - df_stock['EMA-26']
+
+    # Signal line = 9-day EMA of the MACD line.
+    df_stock['Signal'] = df_stock['MACD'].ewm(span=9, adjust=False).mean()
+
+    # Histogram = MACD - Indicator.
+    df_stock['Histogram'] = df_stock['MACD'] - df_stock['Signal']
+    # df_stock['Date'] = pd.to_datetime(df_stock['Date']).dt
+    df_stock['Date'] = df_stock['Date'].apply(lambda x: pd.to_datetime(x).date())
+    df_stock.set_index('Date', inplace=True)    
+    # df_stock[time_type] = df_stock.index.strftime(type[ttype])
+    mask = (df_stock.index > pd.to_datetime(start_date).date())
+    df_stock = df_stock[mask]
+    # df_stock = df_stock.groupby(time_type).sum()
+
+    return df_stock
+
 # sector = 'Health Care'
 # sub = 'Biotechnology'
-# df = Finance().adj_close_total_sub(sector)
-# print(Returns_Risk(df, 'year'))
+# stock = 'VRTX'
+# start = '2019-01-01'
+# M = MACD(sector, sub, stock, start)
+# print(M)
+# print(global_return(start))
