@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from datetime import datetime
+import sys
 
 import os
 from contextlib import redirect_stdout
@@ -197,4 +198,9 @@ def MACD(sector: str, sub: str, stock: str, start_date):#, time_type: str):
 
     return df_stock
 
-# Finance().create_csv()
+def create_local_dataset():
+    Finance().create_csv()
+
+# Get the parameter passed in as a command line argument
+if len(sys.argv) >= 2:
+    create_local_dataset()
