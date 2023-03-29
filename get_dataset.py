@@ -197,10 +197,3 @@ def MACD(sector: str, sub: str, stock: str, start_date):#, time_type: str):
 
     return df_stock
 
-# sector = 'Health Care'
-# sub = 'Biotechnology'
-# stock = 'VRTX'
-# start = '2019-01-01'
-# M = MACD(sector, sub, stock, start)
-# print(M)
-# print(global_return(start))

@@ -1,9 +1,5 @@
 import streamlit as st
-# import altair as alt
-
-# import numpy as np
 import pandas as pd
-# import matplotlib.pyplot as plt
 
 from get_dataset import Finance
 from get_dataset import Returns_Risk, MACD, global_return

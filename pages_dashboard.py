@@ -141,7 +141,7 @@ def Stock(filtered_stock, G_Return, stock, start_date, end_date):
     col1, col2, col3 = st.columns(3)
     global_return = filtered_stock['Returns'].values[-1]
     previous_return = 1- filtered_stock['Returns'].values[-2]/filtered_stock['Returns'].values[-1]
-    col1.metric("Global Returns", "{:.2f}%".format(global_return), "{:.2f}%".format(previous_return))
+    col1.metric("Actual Returns", "{:.2f}%".format(global_return), "{:.2f}%".format(previous_return))
 
     roi = (filtered_stock['Close'].values[-1] - filtered_stock['Open'].values[0]) / filtered_stock['Open'].values[0] * 100
     col2.metric("Return on Investment (ROI)", "{:.2f}%".format(roi), "")
@@ -152,7 +152,7 @@ def Stock(filtered_stock, G_Return, stock, start_date, end_date):
     results = model.fit()
     beta = results.params['Global']
     per = (beta - 1) * 100
-    col3.metric("Volatility (Beta)", "{:.2f}".format(beta), "{:.2f}%".format(per))
+    col3.metric("Volatility (Beta)", "{:.2f}".format(beta), "{:.0f}%".format(per))
 
     # Row Middle
 
