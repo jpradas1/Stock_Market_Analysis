@@ -2,6 +2,7 @@ import streamlit as st
 import altair as alt
 
 import pandas as pd
+
 import statsmodels.api as sm
 
 def Sectors(filtered_sector, df_returns, risk, plot_data, 
@@ -171,3 +172,17 @@ def Stock(filtered_stock, G_Return, stock, start_date, end_date):
 
     # # Display the plot in Streamlit
     # st.altair_chart(combined_plot)
+
+    st.markdown('### MACD')
+    # Melt the selected columns into long format
+    filtered_stock = filtered_stock.reset_index()
+    # filtered_stock['level'] = np.zeros(filtered_stock.shape[0])
+    # columns = [x for x in filtered_stock[['Date', 'MACD', 'level']].columns]
+    # melted_result = pd.melt(filtered_stock[columns], var_name='Date', value_name='MACD')
+
+    line = alt.Chart(filtered_stock).mark_line().encode(
+        x=alt.X('Date:N', title='Date'),
+        y=alt.Y('MACD:Q', title="MACD")#, scale=alt.Scale(zero=False))
+    )#.properties(width=300)
+
+    st.altair_chart(line, use_container_width=True)
